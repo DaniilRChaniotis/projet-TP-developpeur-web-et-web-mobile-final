@@ -1,0 +1,42 @@
+{% extends 'base.html' %} {% block title %} Home - Casa del Café {% endblock %}
+{% block content %}
+<div class="jumbotron mt-4">
+  <h1 class="display-4">Welcome to Casa del Café</h1>
+  <p class="lead">
+    Experience the finest coffee from around the world, right here at Casa del
+    Café.
+  </p>
+  <hr class="my-4" />
+  <p>Check out our selection of coffee beans, accessories, and more!</p>
+  <a class="btn btn-primary btn-lg" href="/products/" role="button"
+    >Browse Our Products</a
+  >
+</div>
+
+<div class="container mt-5">
+  <h2>Featured Products</h2>
+  <div class="row">
+    {% for product in featured_products %}
+    <div class="col-md-4 mb-4">
+      <div class="card">
+        <img
+          src="{{ product.image.url }}"
+          class="card-img-top"
+          alt="{{ product.name }}"
+        />
+        <div class="card-body">
+          <h5 class="card-title">{{ product.name }}</h5>
+          <p class="card-text">{{ product.description|truncatewords:20 }}</p>
+          <p class="card-text"><strong>Price:</strong> ${{ product.price }}</p>
+          <a href="/product/{{ product.id }}" class="btn btn-primary"
+            >View Product</a
+          >
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <p>No featured products available at the moment.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

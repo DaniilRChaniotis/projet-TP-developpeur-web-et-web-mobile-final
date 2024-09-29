@@ -3,50 +3,57 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
 from django.http import HttpResponse
-import json
-import stripe
+import mollie.api.client
 from ecomerce import settings
 from .models import Product
 from .models import Category
 from .models import ContactMessage
 from django.http import HttpResponse, HttpResponseBadRequest
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.conf import settings
 
-stripe.api_key = settings.STRIPE_SECRET_KEY 
+mollie_client = mollie.api.client.Client()
+mollie_client.set_api_key(settings.MOLLIE_API_KEY)
 
-def payment(request):
+def create_payment(request):
     if request.method == 'POST':
-        try:
-            data = json.loads(request.body.decode('utf-8'))
+        # Get total price (replace with your cart's total price logic)
+        total = request.session.get('cart_total', 10.00)  # Example: 10.00 EUR
 
-            payment_method_id = data.get('payment_method_id')
+        # Create Mollie payment
+        payment = mollie_client.payments.create({
+            'amount': {'currency': 'EUR', 'value': f'{total:.2f}'},  # Total in EUR
+            'description': 'Order payment',
+            'redirectUrl': request.build_absolute_uri('/payment/success/'),  # Redirect to success page
+            'webhookUrl': request.build_absolute_uri('/payment/webhook/'),   # Optional for payment status updates
+        })
 
-            if not payment_method_id:
-                return JsonResponse({'error': 'Payment method ID is missing.'}, status=400)
+        # Redirect the user to Mollie's payment page
+        return redirect(payment.get('checkoutUrl'))
 
-            total = request.session.get('cart_total', 0)
-            if total <= 0:
-                return JsonResponse({'error': 'Invalid payment amount.'}, status=400)
+    # Render the payment form
+    return render(request, 'payment.html')
 
-            intent = stripe.PaymentIntent.create(
-                amount=int(total * 100),  
-                currency='usd',
-                payment_method=payment_method_id,
-                confirm=True, 
-            )
+def payment_success(request):
+    return HttpResponse("Payment successful! Thank you for your purchase.")
 
-            request.session['cart'] = {}
-            request.session['cart_total'] = 0
+def payment_webhook(request):
+    # Process Mollie's webhook (optional)
+    payment_id = request.POST.get('id')
+    if payment_id:
+        payment = mollie_client.payments.get(payment_id)
 
-            return JsonResponse({'success': 'Payment successful!'})
+        if payment.is_paid():
+            # Payment successful, update your database, etc.
+            return HttpResponse('Payment received')
+        elif payment.is_pending():
+            # Payment is pending
+            return HttpResponse('Payment pending')
+        elif payment.is_failed():
+            # Payment failed
+            return HttpResponse('Payment failed')
 
-        except stripe.error.CardError as e:
-            return JsonResponse({'error': str(e.error.message)}, status=400)
+    return HttpResponse('Webhook received')
 
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON.'}, status=400)
-
-    return JsonResponse({'error': 'Invalid request method.'}, status=405)
 
 
 def home(request):
